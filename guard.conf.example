@@ -23,8 +23,13 @@
 
 # --- Allowed write directories ---
 # Directories where Claude may create/edit files
+# Add your project directories here:
 WRITE_ALLOW=$HOME/projects
-WRITE_ALLOW=$HOME/.claude
+# eg:
+# WRITE_ALLOW=$HOME/Documents/my-project
+# WRITE_ALLOW=//server/share/project
+# WRITE_ALLOW=//p7/www/dev/dieter/ASSISTENT_AI
+# WRITE_ALLOW=//p7/www/prod10/ASSISTENT_AI
 
 # =============================================================================
 # BASH DENY rules - dangerous commands that are always blocked
