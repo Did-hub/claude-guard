@@ -32,27 +32,35 @@ cd claude-guard
 bash install.sh
 ```
 
-Then edit `~/.claude/hooks/pretooluse-guard.sh` and adjust `ALLOWED_WRITE_DIRS` to your needs:
-
-```bash
-ALLOWED_WRITE_DIRS=(
-  "$HOME/projects"
-  "$HOME/.claude"
-)
-```
+The installer will:
+1. Copy `pretooluse-guard.sh` to `~/.claude/hooks/`
+2. Create `guard.conf` from the example (if it doesn't exist)
+3. Install `settings.json` (if it doesn't exist) or show merge instructions
 
 ## Configuration
 
+All user configuration is in `~/.claude/hooks/guard.conf`. This file is **never overwritten** by `install.sh`, so your settings are preserved when you update.
+
 ### Allowed write directories
 
-Edit the `ALLOWED_WRITE_DIRS` array in `pretooluse-guard.sh`:
+```bash
+# Add directories where Claude may create/edit files
+WRITE_ALLOW=$HOME/projects
+WRITE_ALLOW=$HOME/.claude
+WRITE_ALLOW=/shared/team-folder
+```
+
+### Custom Bash rules
 
 ```bash
-ALLOWED_WRITE_DIRS=(
-  "$HOME/my-project"
-  "$HOME/.claude"
-  "/shared/team-folder"
-)
+# Additional blocked commands (checked before allow rules)
+BASH_DENY=^\s*docker\s+(rm|rmi|prune|system\s+prune)
+BASH_DENY=^\s*sudo
+
+# Additional allowed commands (checked after built-in allow rules)
+BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
+BASH_ALLOW=^\s*composer\s+(show|info|outdated)
+BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
 ```
 
 ### Logging
@@ -65,7 +73,11 @@ All decisions are logged to `~/.claude/hooks/guard.log`:
 [2026-03-16 14:23:01] deny  | Write  | Write not allowed outside allowlist
 ```
 
-Disable logging by setting `LOG_ENABLED=false` in the script.
+Disable logging in `guard.conf`:
+
+```bash
+LOG_ENABLED=false
+```
 
 ### settings.json
 
@@ -89,35 +101,47 @@ The hook is configured in `~/.claude/settings.json`:
 }
 ```
 
-## What is blocked
+## Built-in rules
 
-| Category | Examples | Decision |
-|---|---|---|
-| Destructive | `rm`, `rmdir`, `del`, `format` | DENY |
-| Installations | `pip install`, `npm install`, `winget install` | DENY |
-| System commands | `powershell`, `cmd`, `reg`, `net`, `runas` | DENY |
-| Code execution | `python -c`, `node -e`, `eval` | DENY |
-| File operations | `mv`, `cp`, `mkdir`, `touch`, `chmod` | DENY |
-| Process management | `kill`, `systemctl`, `service` | DENY |
-| Downloads | `curl`, `wget` | DENY |
-| Shell injection | `;`, `&&`, `\|\|`, `>`, `` ` ``, `$()` | DENY |
+### Blocked (DENY)
 
-## What is allowed
+| Category | Examples |
+|---|---|
+| Destructive | `rm`, `rmdir`, `del`, `format` |
+| Installations | `pip install`, `npm install`, `winget install` |
+| System commands | `powershell`, `cmd`, `reg`, `net`, `runas` |
+| Code execution | `python -c`, `node -e`, `eval` |
+| File operations | `mv`, `cp`, `mkdir`, `touch`, `chmod` |
+| Process management | `kill`, `systemctl`, `service` |
+| Downloads | `curl`, `wget` |
+| Shell injection | `;`, `&&`, `\|\|`, `>`, `` ` ``, `$()` |
 
-| Category | Examples | Decision |
-|---|---|---|
-| Directory listing | `ls`, `find`, `tree`, `stat`, `du` | ALLOW |
-| File reading | `cat`, `head`, `tail`, `wc`, `diff` | ALLOW |
-| Text search | `grep`, `rg`, `awk` | ALLOW |
-| Git (read-only) | `git log`, `git status`, `git diff`, `git branch` | ALLOW |
-| System info | `which`, `whoami`, `uname`, `pwd`, `date` | ALLOW |
+### Allowed (ALLOW)
+
+| Category | Examples |
+|---|---|
+| Directory listing | `ls`, `find`, `tree`, `stat`, `du` |
+| File reading | `cat`, `head`, `tail`, `wc`, `diff` |
+| Text search | `grep`, `rg`, `awk` |
+| Git (read-only) | `git log`, `git status`, `git diff`, `git branch` |
+| System info | `which`, `whoami`, `uname`, `pwd`, `date` |
 
 Everything not listed above will trigger the normal Claude Code permission prompt (ASK).
+
+## Updating
+
+```bash
+cd claude-guard
+git pull
+bash install.sh
+```
+
+The hook script is updated, but your `guard.conf` is preserved.
 
 ## Known limitations
 
 - `echo` commands may bypass the hook due to Claude Code's internal handling
-- JSON parsing uses grep/sed (not jq) - may break with multiline command strings
+- JSON parsing uses grep/sed (not jq) — may break with multiline command strings
 - Shell injection detection is pattern-based, not a full parser
 
 ## License

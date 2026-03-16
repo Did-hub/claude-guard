@@ -1,0 +1,39 @@
+# =============================================================================
+# Claude Guard - User Configuration
+# =============================================================================
+# Copy this file to: ~/.claude/hooks/guard.conf
+# Then adjust to your needs. The hook reads this file on every invocation.
+#
+# Syntax:
+#   WRITE_ALLOW=<path>           Directories where Edit/Write is allowed
+#   BASH_ALLOW=<regex>           Additional safe Bash commands (grep -E regex)
+#   BASH_DENY=<regex>            Additional blocked Bash commands (grep -E regex)
+#   LOG_ENABLED=true|false       Enable/disable logging (default: true)
+#
+# Notes:
+#   - One entry per line
+#   - Lines starting with # are comments
+#   - Empty lines are ignored
+#   - $HOME will be expanded automatically
+#   - BASH_DENY rules are checked before BASH_ALLOW rules
+# =============================================================================
+
+# --- Allowed write directories ---
+# Add directories where Claude may create/edit files
+WRITE_ALLOW=$HOME/projects
+WRITE_ALLOW=$HOME/.claude
+
+# --- Additional allowed Bash commands (regex) ---
+# These are checked AFTER the built-in deny rules and AFTER built-in allow rules
+# Use for project-specific commands that are safe in your context
+# BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
+# BASH_ALLOW=^\s*composer\s+(show|info|outdated)
+# BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
+
+# --- Additional blocked Bash commands (regex) ---
+# These are checked BEFORE allow rules (deny always wins)
+# BASH_DENY=^\s*docker\s+(rm|rmi|prune|system\s+prune)
+# BASH_DENY=^\s*sudo
+
+# --- Logging ---
+LOG_ENABLED=true
