@@ -12,16 +12,55 @@ Claude Guard is a single bash script that acts as a gatekeeper for Claude Code t
 
 ## How it works
 
+```mermaid
+flowchart TD
+    A((Claude wants to<br/>use a tool)) --> B{Deny rule<br/>matches?}
+    B -->|Yes| C[Output deny<br/>decision to stdout]
+    C --> D[Tool blocked]
+    B -->|No| E{Allow rule<br/>matches?}
+    E -->|Yes| F[Output allow<br/>decision to stdout]
+    F --> G[Tool permitted]
+    E -->|No| H[No output<br/>passthrough to<br/>Claude Code]
+    H --> I[Normal permission<br/>flow]
+
+    style C fill:#fdd,stroke:#c33
+    style D fill:#fdd,stroke:#c33
+    style F fill:#dfd,stroke:#3c3
+    style G fill:#dfd,stroke:#3c3
+    style H fill:#eee,stroke:#999
+    style I fill:#eee,stroke:#999
+    style B fill:#ffd,stroke:#cc3
+    style E fill:#ffd,stroke:#cc3
 ```
-Claude wants to run a tool
-        |
-   [PreToolUse Hook]
-        |
-   Deny rule match? ──Yes──> BLOCKED
-        |No
-   Allow rule match? ──Yes──> PERMITTED (no prompt)
-        |No
-   No output ──> Normal permission flow (user is asked)
+
+### Edit/Write flow
+
+```mermaid
+flowchart LR
+    A[Edit/Write call] --> B{Path in<br/>WRITE_ALLOW?}
+    B -->|Yes| C[ALLOW]
+    B -->|No| D[DENY]
+
+    style C fill:#dfd,stroke:#3c3
+    style D fill:#fdd,stroke:#c33
+```
+
+### Bash flow
+
+```mermaid
+flowchart TD
+    A[Bash call] --> B{Shell injection?<br/>; && || > etc.}
+    B -->|Yes| C[DENY]
+    B -->|No| D{BASH_DENY<br/>rule matches?}
+    D -->|Yes| E[DENY]
+    D -->|No| F{BASH_ALLOW<br/>rule matches?}
+    F -->|Yes| G[ALLOW]
+    F -->|No| H[ASK user]
+
+    style C fill:#fdd,stroke:#c33
+    style E fill:#fdd,stroke:#c33
+    style G fill:#dfd,stroke:#3c3
+    style H fill:#ffd,stroke:#cc3
 ```
 
 ## Installation
@@ -57,7 +96,7 @@ WRITE_ALLOW=/shared/team-folder
 BASH_DENY=^\s*docker\s+(rm|rmi|prune|system\s+prune)
 BASH_DENY=^\s*sudo
 
-# Additional allowed commands (checked after built-in allow rules)
+# Additional allowed commands (checked after deny rules)
 BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
 BASH_ALLOW=^\s*composer\s+(show|info|outdated)
 BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
@@ -68,8 +107,8 @@ BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
 All decisions are logged to `~/.claude/hooks/guard.log`:
 
 ```
-[2026-03-16 14:16:10] allow | Bash   | Safe read command
-[2026-03-16 14:16:16] deny  | Bash   | Destructive command not allowed
+[2026-03-16 14:16:10] allow | Bash   | Allowed by allow rule
+[2026-03-16 14:16:16] deny  | Bash   | Blocked by deny rule
 [2026-03-16 14:23:01] deny  | Write  | Write not allowed outside allowlist
 ```
 
@@ -102,6 +141,8 @@ The hook is configured in `~/.claude/settings.json`:
 ```
 
 ## Built-in rules
+
+All rules are defined in `guard.conf` and can be commented out or extended.
 
 ### Blocked (DENY)
 
@@ -141,8 +182,9 @@ The hook script is updated, but your `guard.conf` is preserved.
 ## Known limitations
 
 - `echo` commands may bypass the hook due to Claude Code's internal handling
-- JSON parsing uses grep/sed (not jq) — may break with multiline command strings
+- JSON parsing uses grep/sed (not jq) - may break with multiline command strings
 - Shell injection detection is pattern-based, not a full parser
+- Array-based for-loops in hooks cause Claude Code to ignore deny decisions; this is why rules are combined into a single regex pattern via `paste -sd'|'`
 
 ## License
 

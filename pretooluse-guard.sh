@@ -18,54 +18,34 @@
 
 INPUT=$(cat)
 
-# --- Defaults (can be overridden by guard.conf) ---
-
-LOG_FILE="$HOME/.claude/hooks/guard.log"
-LOG_ENABLED=true
-
-# --- Load user configuration from guard.conf ---
+# --- Load configuration from guard.conf ---
+# Uses grep + paste to build combined regex patterns
+# (arrays with for-loops caused deny decisions to be ignored by Claude Code)
 
 CONF_FILE="$HOME/.claude/hooks/guard.conf"
-ALLOWED_WRITE_DIRS=()
-BASH_DENY_RULES=()
-BASH_ALLOW_RULES=()
+DENY_PATTERN=""
+ALLOW_PATTERN=""
+LOG_ENABLED="true"
 
 if [[ -f "$CONF_FILE" ]]; then
-  while IFS= read -r line; do
-    # Skip comments and empty lines
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "${line// }" ]] && continue
+  DENY_PATTERN=$(grep -E '^BASH_DENY=' "$CONF_FILE" | sed 's/^BASH_DENY=//' | paste -sd'|')
+  ALLOW_PATTERN=$(grep -E '^BASH_ALLOW=' "$CONF_FILE" | sed 's/^BASH_ALLOW=//' | paste -sd'|')
 
-    key="${line%%=*}"
-    value="${line#*=}"
+  # Read WRITE_ALLOW dirs
+  WRITE_ALLOW_DIRS=""
+  while IFS= read -r dir; do
+    eval "dir=\"$dir\""
+    WRITE_ALLOW_DIRS="$WRITE_ALLOW_DIRS|$dir"
+  done < <(grep -E '^WRITE_ALLOW=' "$CONF_FILE" | sed 's/^WRITE_ALLOW=//')
 
-    case "$key" in
-      WRITE_ALLOW)
-        eval "value=\"$value\""
-        ALLOWED_WRITE_DIRS+=("$value")
-        ;;
-      BASH_DENY)
-        BASH_DENY_RULES+=("$value")
-        ;;
-      BASH_ALLOW)
-        BASH_ALLOW_RULES+=("$value")
-        ;;
-      LOG_ENABLED)
-        LOG_ENABLED="$value"
-        ;;
-    esac
-  done < "$CONF_FILE"
-fi
-
-# Fallback if no WRITE_ALLOW dirs configured
-if [[ ${#ALLOWED_WRITE_DIRS[@]} -eq 0 ]]; then
-  ALLOWED_WRITE_DIRS=(
-    "$HOME/projects"
-    "$HOME/.claude"
-  )
+  # Read LOG_ENABLED
+  conf_log=$(grep -E '^LOG_ENABLED=' "$CONF_FILE" | tail -1 | sed 's/^LOG_ENABLED=//')
+  [[ -n "$conf_log" ]] && LOG_ENABLED="$conf_log"
 fi
 
 # --- Helper functions ---
+
+LOG_FILE="$HOME/.claude/hooks/guard.log"
 
 log() {
   if [[ "$LOG_ENABLED" == "true" ]]; then
@@ -103,7 +83,10 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
 
   NORMALIZED_FILE=$(normalize "$FILE_PATH")
 
-  for RAW_DIR in "${ALLOWED_WRITE_DIRS[@]}"; do
+  # Check each WRITE_ALLOW dir
+  IFS='|' read -ra DIRS <<< "${WRITE_ALLOW_DIRS#|}"
+  for RAW_DIR in "${DIRS[@]}"; do
+    [[ -z "$RAW_DIR" ]] && continue
     DIR=$(normalize "$RAW_DIR")
     if [[ "$NORMALIZED_FILE" == "$DIR"* ]]; then
       respond "allow" "Allowed directory: $NORMALIZED_FILE"
@@ -149,19 +132,19 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
 
   # --- STEP 2: BASH_DENY rules from guard.conf ---
 
-  for pattern in "${BASH_DENY_RULES[@]}"; do
-    if echo "$COMMAND" | grep -qiE "$pattern"; then
-      respond "deny" "Blocked: $pattern"
+  if [[ -n "$DENY_PATTERN" ]]; then
+    if echo "$COMMAND" | grep -qiE "$DENY_PATTERN"; then
+      respond "deny" "Blocked by deny rule"
     fi
-  done
+  fi
 
   # --- STEP 3: BASH_ALLOW rules from guard.conf ---
 
-  for pattern in "${BASH_ALLOW_RULES[@]}"; do
-    if echo "$COMMAND" | grep -qiE "$pattern"; then
-      respond "allow" "Allowed: $pattern"
+  if [[ -n "$ALLOW_PATTERN" ]]; then
+    if echo "$COMMAND" | grep -qiE "$ALLOW_PATTERN"; then
+      respond "allow" "Allowed by allow rule"
     fi
-  done
+  fi
 
   # --- STEP 4: Everything else -> ASK ---
   respond "ask" "Unknown command - please review"
