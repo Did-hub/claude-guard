@@ -49,7 +49,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[Bash call] --> B{Shell injection?<br/>; && || > etc.}
+    A[Bash call] --> B{"Shell injection?<br/> semicolon, ampersand, pipe, redirect"}
     B -->|Yes| C[DENY]
     B -->|No| D{BASH_DENY<br/>rule matches?}
     D -->|Yes| E[DENY]
