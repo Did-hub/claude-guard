@@ -33,36 +33,6 @@ flowchart TD
     style E fill:#ffd,stroke:#cc3
 ```
 
-### Edit/Write flow
-
-```mermaid
-flowchart LR
-    A[Edit/Write call] --> B{Path in<br/>WRITE_ALLOW?}
-    B -->|Yes| C[ALLOW]
-    B -->|No| D[DENY]
-
-    style C fill:#dfd,stroke:#3c3
-    style D fill:#fdd,stroke:#c33
-```
-
-### Bash flow
-
-```mermaid
-flowchart TD
-    A[Bash call] --> B{"Shell injection?<br/> semicolon, ampersand, pipe, redirect"}
-    B -->|Yes| C[DENY]
-    B -->|No| D{BASH_DENY<br/>rule matches?}
-    D -->|Yes| E[DENY]
-    D -->|No| F{BASH_ALLOW<br/>rule matches?}
-    F -->|Yes| G[ALLOW]
-    F -->|No| H[ASK user]
-
-    style C fill:#fdd,stroke:#c33
-    style E fill:#fdd,stroke:#c33
-    style G fill:#dfd,stroke:#3c3
-    style H fill:#ffd,stroke:#cc3
-```
-
 ## Installation
 
 ```bash
