@@ -1,39 +1,85 @@
 # =============================================================================
-# Claude Guard - User Configuration
+# Claude Guard - Configuration
 # =============================================================================
 # Copy this file to: ~/.claude/hooks/guard.conf
 # Then adjust to your needs. The hook reads this file on every invocation.
 #
 # Syntax:
 #   WRITE_ALLOW=<path>           Directories where Edit/Write is allowed
-#   BASH_ALLOW=<regex>           Additional safe Bash commands (grep -E regex)
-#   BASH_DENY=<regex>            Additional blocked Bash commands (grep -E regex)
+#   BASH_ALLOW=<regex>           Safe Bash commands (grep -E regex)
+#   BASH_DENY=<regex>            Blocked Bash commands (grep -E regex)
 #   LOG_ENABLED=true|false       Enable/disable logging (default: true)
 #
 # Notes:
 #   - One entry per line
 #   - Lines starting with # are comments
 #   - Empty lines are ignored
-#   - $HOME will be expanded automatically
-#   - BASH_DENY rules are checked before BASH_ALLOW rules
+#   - $HOME will be expanded automatically in WRITE_ALLOW paths
+#   - BASH_DENY rules are checked BEFORE BASH_ALLOW rules
+#   - Shell injection detection (;, &&, ||, >, $(), `) is always active
+#     and cannot be disabled via config
+#   - Comment out or remove lines to disable specific rules
 # =============================================================================
 
 # --- Allowed write directories ---
-# Add directories where Claude may create/edit files
+# Directories where Claude may create/edit files
 WRITE_ALLOW=$HOME/projects
 WRITE_ALLOW=$HOME/.claude
 
-# --- Additional allowed Bash commands (regex) ---
-# These are checked AFTER the built-in deny rules and AFTER built-in allow rules
-# Use for project-specific commands that are safe in your context
+# =============================================================================
+# BASH DENY rules - dangerous commands that are always blocked
+# =============================================================================
+
+# Destructive: delete, format
+BASH_DENY=^\s*(rm|rmdir|del|rd|format|mkfs)\b
+
+# Package managers / installations
+BASH_DENY=(pip\s+install|npm\s+install|yarn\s+add|apt\s+install|apt-get\s+install|winget\s+install|choco\s+install|brew\s+install)
+
+# Windows system commands
+BASH_DENY=^\s*(powershell|cmd\s|reg\s|net\s|sc\s|schtasks|wmic|netsh|runas)\b
+
+# Code execution via interpreter
+BASH_DENY=(python[23]?\s+-c|node\s+-e|ruby\s+-e|perl\s+-e|eval\s)
+
+# File operations (move, copy, create)
+BASH_DENY=^\s*(mv|cp|mkdir|touch|chmod|chown|chgrp|ln)\b
+
+# Process management
+BASH_DENY=^\s*(kill|killall|pkill|systemctl|service)\b
+
+# Network downloads
+BASH_DENY=^\s*(curl|wget|fetch)\b
+
+# --- Add your own deny rules below ---
+# BASH_DENY=^\s*docker\s+(rm|rmi|prune|system\s+prune)
+# BASH_DENY=^\s*sudo
+
+# =============================================================================
+# BASH ALLOW rules - safe read-only commands that run without prompt
+# =============================================================================
+
+# Filesystem listing
+BASH_ALLOW=^\s*(ls|dir|find|file|stat|du|df|tree|realpath|readlink|basename|dirname)(\s|$)
+
+# File content reading
+BASH_ALLOW=^\s*(cat|head|tail|less|more|wc|sort|uniq|diff|md5sum|sha256sum)(\s|$)
+
+# Text search
+BASH_ALLOW=^\s*(grep|rg|ag|awk)(\s|$)
+
+# Git read commands
+BASH_ALLOW=^\s*git\s+(log|status|diff|branch|tag|show|blame|remote|rev-parse|config\s+--list)
+
+# System information
+BASH_ALLOW=^\s*(which|where|whoami|hostname|uname|env|printenv|date|pwd|id|uptime|php\s+-v|node\s+-v|npm\s+-v|git\s+--version)(\s|$)
+
+# --- Add your own allow rules below ---
 # BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
 # BASH_ALLOW=^\s*composer\s+(show|info|outdated)
 # BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
 
-# --- Additional blocked Bash commands (regex) ---
-# These are checked BEFORE allow rules (deny always wins)
-# BASH_DENY=^\s*docker\s+(rm|rmi|prune|system\s+prune)
-# BASH_DENY=^\s*sudo
-
-# --- Logging ---
+# =============================================================================
+# Logging
+# =============================================================================
 LOG_ENABLED=true

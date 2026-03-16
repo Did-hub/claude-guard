@@ -6,10 +6,10 @@
 # Matcher in settings.json: "Bash|Edit|Write"
 #
 # Logic:
-#   Edit/Write -> Path-based allowlist (only specific directories)
-#   Bash       -> 1. Detect shell injection -> DENY
-#                  2. Detect dangerous commands + user BASH_DENY -> DENY
-#                  3. Detect safe read commands + user BASH_ALLOW -> ALLOW
+#   Edit/Write -> Path-based allowlist (WRITE_ALLOW in guard.conf)
+#   Bash       -> 1. Detect shell injection -> DENY (always active, not configurable)
+#                  2. BASH_DENY rules from guard.conf -> DENY
+#                  3. BASH_ALLOW rules from guard.conf -> ALLOW
 #                  4. Everything else -> ASK (user decides)
 #
 # Configuration: ~/.claude/hooks/guard.conf (see guard.conf.example)
@@ -27,8 +27,8 @@ LOG_ENABLED=true
 
 CONF_FILE="$HOME/.claude/hooks/guard.conf"
 ALLOWED_WRITE_DIRS=()
-USER_BASH_DENY=()
-USER_BASH_ALLOW=()
+BASH_DENY_RULES=()
+BASH_ALLOW_RULES=()
 
 if [[ -f "$CONF_FILE" ]]; then
   while IFS= read -r line; do
@@ -41,15 +41,14 @@ if [[ -f "$CONF_FILE" ]]; then
 
     case "$key" in
       WRITE_ALLOW)
-        # Expand $HOME in the value
         eval "value=\"$value\""
         ALLOWED_WRITE_DIRS+=("$value")
         ;;
       BASH_DENY)
-        USER_BASH_DENY+=("$value")
+        BASH_DENY_RULES+=("$value")
         ;;
       BASH_ALLOW)
-        USER_BASH_ALLOW+=("$value")
+        BASH_ALLOW_RULES+=("$value")
         ;;
       LOG_ENABLED)
         LOG_ENABLED="$value"
@@ -98,14 +97,12 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
 
   FILE_PATH=$(echo "$INPUT" | grep -o '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"file_path"[[:space:]]*:[[:space:]]*"//;s/"$//')
 
-  # No path -> block for safety
   if [[ -z "$FILE_PATH" ]]; then
     respond "deny" "No file path specified"
   fi
 
   NORMALIZED_FILE=$(normalize "$FILE_PATH")
 
-  # Check against allowed directories from guard.conf
   for RAW_DIR in "${ALLOWED_WRITE_DIRS[@]}"; do
     DIR=$(normalize "$RAW_DIR")
     if [[ "$NORMALIZED_FILE" == "$DIR"* ]]; then
@@ -128,99 +125,41 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     respond "ask" "No command detected"
   fi
 
-  # --- STEP 1: Detect shell injection -> DENY ---
-  # Protects allowed commands from abuse via chained commands
+  # --- STEP 1: Shell injection detection (always active, not configurable) ---
 
-  # Command chaining: ; && ||
   if echo "$COMMAND" | grep -qE '[;&]{1,2}|\|\|'; then
     respond "deny" "Shell injection: command chaining not allowed (; && ||)"
   fi
 
-  # Pipe to interpreter (bash, sh, python, node, etc.)
   if echo "$COMMAND" | grep -qE '\|\s*(bash|sh|zsh|python|node|ruby|perl|cmd|powershell)'; then
     respond "deny" "Shell injection: pipe to interpreter not allowed"
   fi
 
-  # Command substitution: $(...) or `...`
   if echo "$COMMAND" | grep -qE '\$\(|`'; then
     respond "deny" "Shell injection: command substitution not allowed"
   fi
 
-  # Redirect: > >>
   if echo "$COMMAND" | grep -qE '>>?'; then
     respond "deny" "Shell injection: redirect not allowed (> >>)"
   fi
 
-  # Process substitution: <(...)
   if echo "$COMMAND" | grep -qE '<\('; then
     respond "deny" "Shell injection: process substitution not allowed"
   fi
 
-  # --- STEP 2: Dangerous commands -> DENY ---
+  # --- STEP 2: BASH_DENY rules from guard.conf ---
 
-  # Built-in deny rules
-  if echo "$COMMAND" | grep -qiE '^\s*(rm|rmdir|del|rd|format|mkfs)\b'; then
-    respond "deny" "Destructive command not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '(pip\s+install|npm\s+install|yarn\s+add|apt\s+install|apt-get\s+install|winget\s+install|choco\s+install|brew\s+install)'; then
-    respond "deny" "Installation not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '^\s*(powershell|cmd\s|reg\s|net\s|sc\s|schtasks|wmic|netsh|runas)\b'; then
-    respond "deny" "System command not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '(python[23]?\s+-c|node\s+-e|ruby\s+-e|perl\s+-e|eval\s)'; then
-    respond "deny" "Code execution not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '^\s*(mv|cp|mkdir|touch|chmod|chown|chgrp|ln)\b'; then
-    respond "deny" "File operation not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '^\s*(kill|killall|pkill|systemctl|service)\b'; then
-    respond "deny" "Process management not allowed"
-  fi
-
-  if echo "$COMMAND" | grep -qiE '^\s*(curl|wget|fetch)\b'; then
-    respond "deny" "Download command not allowed"
-  fi
-
-  # User-defined deny rules from guard.conf
-  for pattern in "${USER_BASH_DENY[@]}"; do
+  for pattern in "${BASH_DENY_RULES[@]}"; do
     if echo "$COMMAND" | grep -qiE "$pattern"; then
-      respond "deny" "Blocked by user rule: $pattern"
+      respond "deny" "Blocked: $pattern"
     fi
   done
 
-  # --- STEP 3: Safe read commands -> ALLOW ---
+  # --- STEP 3: BASH_ALLOW rules from guard.conf ---
 
-  # Built-in allow rules
-  if echo "$COMMAND" | grep -qE '^\s*(ls|dir|find|file|stat|du|df|tree|realpath|readlink|basename|dirname)(\s|$)'; then
-    respond "allow" "Safe read command"
-  fi
-
-  if echo "$COMMAND" | grep -qE '^\s*(cat|head|tail|less|more|wc|sort|uniq|diff|md5sum|sha256sum)(\s|$)'; then
-    respond "allow" "Safe read command"
-  fi
-
-  if echo "$COMMAND" | grep -qE '^\s*(grep|rg|ag|awk)(\s|$)'; then
-    respond "allow" "Safe search command"
-  fi
-
-  if echo "$COMMAND" | grep -qE '^\s*git\s+(log|status|diff|branch|tag|show|blame|remote|rev-parse|config\s+--list)'; then
-    respond "allow" "Safe git command"
-  fi
-
-  if echo "$COMMAND" | grep -qE '^\s*(which|where|whoami|hostname|uname|env|printenv|date|pwd|id|uptime|php\s+-v|node\s+-v|npm\s+-v|git\s+--version)(\s|$)'; then
-    respond "allow" "Safe info command"
-  fi
-
-  # User-defined allow rules from guard.conf
-  for pattern in "${USER_BASH_ALLOW[@]}"; do
+  for pattern in "${BASH_ALLOW_RULES[@]}"; do
     if echo "$COMMAND" | grep -qiE "$pattern"; then
-      respond "allow" "Allowed by user rule: $pattern"
+      respond "allow" "Allowed: $pattern"
     fi
   done
 
