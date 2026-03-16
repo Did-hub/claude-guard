@@ -36,6 +36,7 @@ flowchart TD
 ## Installation
 
 ```bash
+cd ~
 git clone https://github.com/Did-hub/claude-guard.git
 cd claude-guard
 bash install.sh
@@ -142,7 +143,7 @@ Everything not listed above will trigger the normal Claude Code permission promp
 ## Updating
 
 ```bash
-cd claude-guard
+cd ~/claude-guard
 git pull
 bash install.sh
 ```
