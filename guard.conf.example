@@ -5,7 +5,8 @@
 # Then adjust to your needs. The hook reads this file on every invocation.
 #
 # Syntax:
-#   WRITE_ALLOW=<path>           Directories where Edit/Write is allowed
+#   WRITE_ALLOW=<path>           Directories where Edit/Write is allowed (prefix match)
+#   WRITE_DENY=<regex>           Paths where Edit/Write is forbidden (regex, checked BEFORE WRITE_ALLOW)
 #   BASH_ALLOW=<regex>           Safe Bash commands (grep -E regex)
 #   BASH_DENY=<regex>            Blocked Bash commands (grep -E regex)
 #   LOG_ENABLED=true|false       Enable/disable logging (default: true)
@@ -15,6 +16,7 @@
 #   - Lines starting with # are comments
 #   - Empty lines are ignored
 #   - $HOME will be expanded automatically in WRITE_ALLOW paths
+#   - WRITE_DENY is checked BEFORE WRITE_ALLOW (regex, path normalized to lowercase)
 #   - BASH_DENY rules are checked BEFORE BASH_ALLOW rules
 #   - Shell injection detection (;, &&, ||, >, $(), `) is always active
 #     and cannot be disabled via config
@@ -30,6 +32,22 @@ WRITE_ALLOW=$HOME/projects
 # WRITE_ALLOW=//server/share/project
 # WRITE_ALLOW=//p7/www/dev/dieter/ASSISTENT_AI
 # WRITE_ALLOW=//p7/www/prod10/ASSISTENT_AI
+
+# =============================================================================
+# WRITE DENY rules - paths where Edit/Write is forbidden (use sed via Bash)
+# Regex patterns (grep -E). Checked BEFORE WRITE_ALLOW.
+# Path is normalized to lowercase before matching.
+# =============================================================================
+
+# Example: AS/400 source files are ISO-8859-1 encoded.
+# Edit/Write read them as UTF-8 and corrupt umlauts (U+FFFD).
+# Use sed via Bash to preserve the encoding.
+# WRITE_DENY=/var/kaps/sedna/quellen/[a-z0-9#]+/q[a-z]+src/
+
+# Other use cases:
+# WRITE_DENY=/node_modules/
+# WRITE_DENY=/path/to/readonly/
+# WRITE_DENY=\.(generated|min)\.(js|css)$
 
 # =============================================================================
 # BASH DENY rules - dangerous commands that are always blocked

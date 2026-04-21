@@ -6,7 +6,7 @@ A PreToolUse security hook for [Claude Code](https://claude.ai/claude-code) that
 
 Claude Guard is a single bash script that acts as a gatekeeper for Claude Code tool calls:
 
-- **Edit/Write** - Only allowed in explicitly configured directories
+- **Edit/Write** - Only allowed in explicitly configured directories (`WRITE_ALLOW`); specific paths can be blocked via regex (`WRITE_DENY`, e.g. for ISO-8859-1 legacy files that would be corrupted by UTF-8 writes)
 - **Bash** - Dangerous commands (rm, install, powershell, ...) are blocked, safe read commands (ls, cat, grep, git log, ...) are auto-allowed, everything else requires user confirmation
 - **Shell injection protection** - Detects command chaining (`;`, `&&`, `||`), redirects (`>`), command substitution (`` ` ``), and pipes to interpreters
 
@@ -59,6 +59,25 @@ WRITE_ALLOW=$HOME/projects
 WRITE_ALLOW=$HOME/.claude
 WRITE_ALLOW=/shared/team-folder
 ```
+
+### Blocked write paths (WRITE_DENY)
+
+Regex patterns that block Edit/Write even inside an allowed directory. Checked **before** `WRITE_ALLOW`. The path is normalized to lowercase before matching.
+
+```bash
+# AS/400 sources: ISO-8859-1 encoded, would be corrupted by UTF-8 Write/Edit.
+# Use sed via Bash to preserve the encoding.
+WRITE_DENY=/var/kaps/sedna/quellen/[a-z0-9#]+/q[a-z]+src/
+
+# Dependency folders / generated files
+WRITE_DENY=/node_modules/
+WRITE_DENY=\.(generated|min)\.(js|css)$
+```
+
+Rule order for Edit/Write:
+1. `WRITE_DENY` (regex) — match → **deny**
+2. `WRITE_ALLOW` (prefix) — match → **allow**
+3. default → **deny**
 
 ### Custom Bash rules
 

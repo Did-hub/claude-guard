@@ -6,7 +6,9 @@
 # Matcher in settings.json: "Bash|Edit|Write"
 #
 # Logic:
-#   Edit/Write -> Path-based allowlist (WRITE_ALLOW in guard.conf)
+#   Edit/Write -> 1. WRITE_DENY regex patterns from guard.conf -> DENY
+#                  2. WRITE_ALLOW path prefixes from guard.conf -> ALLOW
+#                  3. Everything else -> DENY
 #   Bash       -> 1. Detect shell injection -> DENY (always active, not configurable)
 #                  2. BASH_DENY rules from guard.conf -> DENY
 #                  3. BASH_ALLOW rules from guard.conf -> ALLOW
@@ -37,6 +39,9 @@ if [[ -f "$CONF_FILE" ]]; then
     eval "dir=\"$dir\""
     WRITE_ALLOW_DIRS="$WRITE_ALLOW_DIRS|$dir"
   done < <(grep -E '^WRITE_ALLOW=' "$CONF_FILE" | sed 's/^WRITE_ALLOW=//')
+
+  # Read WRITE_DENY regex patterns (checked BEFORE WRITE_ALLOW)
+  WRITE_DENY_PATTERN=$(grep -E '^WRITE_DENY=' "$CONF_FILE" | sed 's/^WRITE_DENY=//' | paste -sd'|')
 
   # Read LOG_ENABLED
   conf_log=$(grep -E '^LOG_ENABLED=' "$CONF_FILE" | tail -1 | sed 's/^LOG_ENABLED=//')
@@ -82,6 +87,13 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
   fi
 
   NORMALIZED_FILE=$(normalize "$FILE_PATH")
+
+  # Check WRITE_DENY patterns first (regex). Checked BEFORE WRITE_ALLOW.
+  if [[ -n "$WRITE_DENY_PATTERN" ]]; then
+    if echo "$NORMALIZED_FILE" | grep -qE "$WRITE_DENY_PATTERN"; then
+      respond "deny" "Edit/Write blocked for this path. Use sed via Bash to preserve encoding. Path: $NORMALIZED_FILE"
+    fi
+  fi
 
   # Check each WRITE_ALLOW dir
   IFS='|' read -ra DIRS <<< "${WRITE_ALLOW_DIRS#|}"
