@@ -6,6 +6,8 @@
 #
 # Syntax:
 #   WRITE_ALLOW=<path>           Directories where Edit/Write is allowed (prefix match)
+#   WRITE_ALLOW=ALL              Wildcard: allow Edit/Write in ANY directory
+#                                (WRITE_DENY rules still apply)
 #   WRITE_DENY=<regex>           Paths where Edit/Write is forbidden (regex, checked BEFORE WRITE_ALLOW)
 #   BASH_ALLOW=<regex>           Safe Bash commands (grep -E regex)
 #   BASH_DENY=<regex>            Blocked Bash commands (grep -E regex)
@@ -38,6 +40,12 @@ WRITE_ALLOW=$HOME/.claude/hooks/guard.conf
 # WRITE_ALLOW=//server/share/project
 # WRITE_ALLOW=//p7/www/dev/dieter/ASSISTENT_AI
 # WRITE_ALLOW=//p7/www/prod10/ASSISTENT_AI
+
+# Wildcard: allow Edit/Write in ANY directory.
+# WRITE_DENY rules above still apply (deny is evaluated first), so you can
+# still carve out exceptions (e.g. /node_modules/, legacy ISO-8859-1 sources).
+# Use with care — this disables the path-based allowlist entirely.
+# WRITE_ALLOW=ALL
 
 # =============================================================================
 # WRITE DENY rules - paths where Edit/Write is forbidden (use sed via Bash)

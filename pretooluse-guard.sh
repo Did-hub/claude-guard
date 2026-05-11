@@ -105,6 +105,11 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
   IFS='|' read -ra DIRS <<< "${WRITE_ALLOW_DIRS#|}"
   for RAW_DIR in "${DIRS[@]}"; do
     [[ -z "$RAW_DIR" ]] && continue
+    # WRITE_ALLOW=ALL is a wildcard: any path passes the allow check.
+    # WRITE_DENY rules above still apply (deny is evaluated first).
+    if [[ "$RAW_DIR" == "ALL" ]]; then
+      respond "allow" "Allowed by WRITE_ALLOW=ALL: $NORMALIZED_FILE"
+    fi
     DIR=$(normalize "$RAW_DIR")
     if [[ "$NORMALIZED_FILE" == "$DIR"* ]]; then
       respond "allow" "Allowed directory: $NORMALIZED_FILE"

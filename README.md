@@ -60,6 +60,10 @@ WRITE_ALLOW=/shared/team-folder
 
 # Default also allows Claude to edit its own config (prefix match: file only)
 WRITE_ALLOW=$HOME/.claude/hooks/guard.conf
+
+# Wildcard: allow writes in ANY directory. WRITE_DENY rules still apply,
+# so you can carve out exceptions. Disables the path-based allowlist.
+# WRITE_ALLOW=ALL
 ```
 
 ### Blocked write paths (WRITE_DENY)
