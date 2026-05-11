@@ -8,7 +8,7 @@ Claude Guard is a single bash script that acts as a gatekeeper for Claude Code t
 
 - **Edit/Write** - Only allowed in explicitly configured directories (`WRITE_ALLOW`); specific paths can be blocked via regex (`WRITE_DENY`, e.g. for ISO-8859-1 legacy files that would be corrupted by UTF-8 writes)
 - **Bash** - Dangerous commands (rm, install, powershell, ...) are blocked, safe read commands (ls, cat, grep, git log, ...) are auto-allowed, everything else requires user confirmation
-- **Shell injection protection** - Detects command chaining (`;`, `&&`, `||`), redirects (`>`), command substitution (`` ` ``), and pipes to interpreters
+- **Shell injection protection** - Always blocks redirects (`>`), command substitution (`` ` ``, `$()`), and pipes to interpreters. Command chaining (`;`, `&&`, `||`) is configurable via `ALLOW_CHAINING` (default: allowed)
 
 ## How it works
 
@@ -56,8 +56,10 @@ All user configuration is in `~/.claude/hooks/guard.conf`. This file is **never 
 ```bash
 # Add directories where Claude may create/edit files
 WRITE_ALLOW=$HOME/projects
-WRITE_ALLOW=$HOME/.claude
 WRITE_ALLOW=/shared/team-folder
+
+# Default also allows Claude to edit its own config (prefix match: file only)
+WRITE_ALLOW=$HOME/.claude/hooks/guard.conf
 ```
 
 ### Blocked write paths (WRITE_DENY)
@@ -91,6 +93,16 @@ BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
 BASH_ALLOW=^\s*composer\s+(show|info|outdated)
 BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
 ```
+
+### Command chaining
+
+By default, chained commands using `;`, `&&`, or `||` are permitted. To enforce single-command execution, set:
+
+```bash
+ALLOW_CHAINING=false
+```
+
+Other shell-injection patterns (redirects, command substitution, pipe-to-interpreter) remain blocked regardless of this setting.
 
 ### Logging
 
@@ -145,7 +157,7 @@ All rules are defined in `guard.conf` and can be commented out or extended.
 | File operations | `mv`, `cp`, `mkdir`, `touch`, `chmod` |
 | Process management | `kill`, `systemctl`, `service` |
 | Downloads | `curl`, `wget` |
-| Shell injection | `;`, `&&`, `\|\|`, `>`, `` ` ``, `$()` |
+| Shell injection | `>`, `` ` ``, `$()`, pipe-to-interpreter (chaining `;`, `&&`, `\|\|` configurable, default allowed) |
 
 ### Allowed (ALLOW)
 

@@ -9,10 +9,11 @@
 #   Edit/Write -> 1. WRITE_DENY regex patterns from guard.conf -> DENY
 #                  2. WRITE_ALLOW path prefixes from guard.conf -> ALLOW
 #                  3. Everything else -> DENY
-#   Bash       -> 1. Detect shell injection -> DENY (always active, not configurable)
-#                  2. BASH_DENY rules from guard.conf -> DENY
-#                  3. BASH_ALLOW rules from guard.conf -> ALLOW
-#                  4. Everything else -> ASK (user decides)
+#   Bash       -> 1. Detect shell injection (redirects, $(), `, pipe-to-interpreter) -> DENY
+#                  2. Detect command chaining (; && ||) -> DENY if ALLOW_CHAINING=false
+#                  3. BASH_DENY rules from guard.conf -> DENY
+#                  4. BASH_ALLOW rules from guard.conf -> ALLOW
+#                  5. Everything else -> ASK (user decides)
 #
 # Configuration: ~/.claude/hooks/guard.conf (see guard.conf.example)
 # Logging:       ~/.claude/hooks/guard.log
@@ -28,6 +29,7 @@ CONF_FILE="$HOME/.claude/hooks/guard.conf"
 DENY_PATTERN=""
 ALLOW_PATTERN=""
 LOG_ENABLED="true"
+ALLOW_CHAINING="true"
 
 if [[ -f "$CONF_FILE" ]]; then
   DENY_PATTERN=$(grep -E '^BASH_DENY=' "$CONF_FILE" | sed 's/^BASH_DENY=//' | paste -sd'|')
@@ -46,6 +48,10 @@ if [[ -f "$CONF_FILE" ]]; then
   # Read LOG_ENABLED
   conf_log=$(grep -E '^LOG_ENABLED=' "$CONF_FILE" | tail -1 | sed 's/^LOG_ENABLED=//')
   [[ -n "$conf_log" ]] && LOG_ENABLED="$conf_log"
+
+  # Read ALLOW_CHAINING
+  conf_chain=$(grep -E '^ALLOW_CHAINING=' "$CONF_FILE" | tail -1 | sed 's/^ALLOW_CHAINING=//')
+  [[ -n "$conf_chain" ]] && ALLOW_CHAINING="$conf_chain"
 fi
 
 # --- Helper functions ---
@@ -120,10 +126,13 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     respond "ask" "No command detected"
   fi
 
-  # --- STEP 1: Shell injection detection (always active, not configurable) ---
+  # --- STEP 1: Shell injection detection ---
 
-  if echo "$COMMAND" | grep -qE '[;&]{1,2}|\|\|'; then
-    respond "deny" "Shell injection: command chaining not allowed (; && ||)"
+  # Command chaining (; && ||) - configurable via ALLOW_CHAINING (default: true)
+  if [[ "$ALLOW_CHAINING" != "true" ]]; then
+    if echo "$COMMAND" | grep -qE '[;&]{1,2}|\|\|'; then
+      respond "deny" "Shell injection: command chaining not allowed (; && ||)"
+    fi
   fi
 
   if echo "$COMMAND" | grep -qE '\|\s*(bash|sh|zsh|python|node|ruby|perl|cmd|powershell)'; then

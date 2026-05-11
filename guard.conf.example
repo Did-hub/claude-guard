@@ -9,6 +9,7 @@
 #   WRITE_DENY=<regex>           Paths where Edit/Write is forbidden (regex, checked BEFORE WRITE_ALLOW)
 #   BASH_ALLOW=<regex>           Safe Bash commands (grep -E regex)
 #   BASH_DENY=<regex>            Blocked Bash commands (grep -E regex)
+#   ALLOW_CHAINING=true|false    Allow ; && || in Bash commands (default: true)
 #   LOG_ENABLED=true|false       Enable/disable logging (default: true)
 #
 # Notes:
@@ -18,8 +19,9 @@
 #   - $HOME will be expanded automatically in WRITE_ALLOW paths
 #   - WRITE_DENY is checked BEFORE WRITE_ALLOW (regex, path normalized to lowercase)
 #   - BASH_DENY rules are checked BEFORE BASH_ALLOW rules
-#   - Shell injection detection (;, &&, ||, >, $(), `) is always active
-#     and cannot be disabled via config
+#   - Shell injection detection for redirects (>), command substitution ($(), `)
+#     and pipe-to-interpreter is always active and cannot be disabled via config
+#   - Command chaining (;, && , ||) is controlled by ALLOW_CHAINING (default: true)
 #   - Comment out or remove lines to disable specific rules
 # =============================================================================
 
@@ -27,6 +29,10 @@
 # Directories where Claude may create/edit files
 # Add your project directories here:
 WRITE_ALLOW=$HOME/projects
+
+# Allow Claude to edit its own guard config (prefix match: this file only)
+WRITE_ALLOW=$HOME/.claude/hooks/guard.conf
+
 # eg:
 # WRITE_ALLOW=$HOME/Documents/my-project
 # WRITE_ALLOW=//server/share/project
@@ -101,6 +107,15 @@ BASH_ALLOW=^\s*(which|where|whoami|hostname|uname|env|printenv|date|pwd|id|uptim
 # BASH_ALLOW=^\s*docker\s+(ps|images|logs|inspect)
 # BASH_ALLOW=^\s*composer\s+(show|info|outdated)
 # BASH_ALLOW=^\s*php\s+artisan\s+(route:list|config:show)
+
+# =============================================================================
+# Bash command chaining (; && ||)
+# =============================================================================
+# When true, Claude may chain commands with ; && ||
+# When false, chaining is blocked (each command must run separately).
+# Other shell injection (redirects, command substitution, pipe-to-interpreter)
+# remains blocked unconditionally.
+ALLOW_CHAINING=true
 
 # =============================================================================
 # Logging
