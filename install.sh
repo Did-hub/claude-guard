@@ -13,6 +13,7 @@ CLAUDE_DIR="$HOME/.claude"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 CONF_FILE="$HOOKS_DIR/guard.conf"
+CONF_EXAMPLE_FILE="$HOOKS_DIR/guard.conf.example"
 
 echo "=== Claude Guard Installer ==="
 echo ""
@@ -26,9 +27,25 @@ cp "$SCRIPT_DIR/pretooluse-guard.sh" "$HOOKS_DIR/pretooluse-guard.sh"
 chmod +x "$HOOKS_DIR/pretooluse-guard.sh"
 echo "[OK] Hook installed: $HOOKS_DIR/pretooluse-guard.sh"
 
+# Refresh the example file alongside the user config so updates expose
+# new defaults without overwriting custom changes. Detect whether the
+# upstream example changed since the last install — that's the signal
+# that new defaults landed and the user should review them.
+EXAMPLE_CHANGED=0
+if [[ -f "$CONF_EXAMPLE_FILE" ]] && ! diff -q "$CONF_EXAMPLE_FILE" "$SCRIPT_DIR/guard.conf.example" > /dev/null 2>&1; then
+  EXAMPLE_CHANGED=1
+fi
+cp "$SCRIPT_DIR/guard.conf.example" "$CONF_EXAMPLE_FILE"
+echo "[OK] Example refreshed: $CONF_EXAMPLE_FILE"
+
 # Handle guard.conf (never overwrite user config)
 if [[ -f "$CONF_FILE" ]]; then
-  echo "[OK] Config exists: $CONF_FILE (not overwritten)"
+  echo "[OK] Config exists: $CONF_FILE (preserved)"
+  if [[ "$EXAMPLE_CHANGED" == "1" ]]; then
+    echo "     -> New defaults shipped in this update."
+    echo "        Review them with:"
+    echo "          diff $CONF_FILE $CONF_EXAMPLE_FILE"
+  fi
 else
   cp "$SCRIPT_DIR/guard.conf.example" "$CONF_FILE"
   echo "[OK] Config installed: $CONF_FILE"

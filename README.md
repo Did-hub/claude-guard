@@ -179,7 +179,16 @@ git pull
 bash install.sh
 ```
 
-The hook script is updated, but your `guard.conf` is preserved.
+What gets touched:
+
+| File | On update |
+|---|---|
+| `~/.claude/hooks/pretooluse-guard.sh` | always overwritten — latest hook logic |
+| `~/.claude/hooks/guard.conf.example` | always refreshed — mirror of the shipped example |
+| `~/.claude/hooks/guard.conf` | **preserved** — your settings are never overwritten |
+| `~/.claude/settings.json` | preserved |
+
+If the example shipped new defaults since your last install, the installer prints a `diff` command so you can review what changed and decide what to copy into your `guard.conf` manually.
 
 ## Known limitations
 
